@@ -65,6 +65,7 @@ func MakeEcosystem(metadata any) osvecosystem.Parsed {
 			}
 			return osvecosystem.Parsed{Ecosystem: osvschema.EcosystemOpenEuler, Suffix: suffix}
 		}
+
 	case *snapmeta.Metadata:
 		if m.OSID == "ubuntu" {
 			return osvecosystem.FromEcosystem(osvschema.EcosystemUbuntu)
