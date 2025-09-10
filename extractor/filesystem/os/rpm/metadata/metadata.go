@@ -32,6 +32,7 @@ type Metadata struct {
 	OSID         string
 	OSVersionID  string
 	OSBuildID    string
+	OSPrettyName string
 	Vendor       string
 	Architecture string
 }

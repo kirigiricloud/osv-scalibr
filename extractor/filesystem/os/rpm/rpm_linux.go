@@ -198,6 +198,7 @@ func (e Extractor) extractFromInput(ctx context.Context, input *filesystem.ScanI
 			OSID:         m["ID"],
 			OSVersionID:  m["VERSION_ID"],
 			OSBuildID:    m["BUILD_ID"],
+			OSPrettyName: m["PRETTY_NAME"],
 			Vendor:       p.Vendor,
 			Architecture: p.Architecture,
 		}

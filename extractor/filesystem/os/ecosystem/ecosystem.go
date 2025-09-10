@@ -29,6 +29,7 @@ import (
 	"github.com/ossf/osv-schema/bindings/go/osvschema"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"regexp"
 )
 
 // MakeEcosystem computes the OSV Ecosystem value from an OS package's metadata.
@@ -54,7 +55,16 @@ func MakeEcosystem(metadata any) osvecosystem.Parsed {
 		if m.OSID == "rocky" {
 			return osvecosystem.FromEcosystem(osvschema.EcosystemRockyLinux)
 		}
-
+		if m.OSID == "openeuler" {
+            // Extract version and LTS info from OSPrettyName to match osv-schema ecosystem. e.g. openEuler 24.03 (LTS-SP3) -> 24.03-LTS-SP3
+            suffix := m.OSVersionID
+			if re := regexp.MustCompile(`openEuler (\d+\.\d+)(?:(-LTS)|\s*\((LTS-SP\d+)\))?`); re != nil {
+			    if matches := re.FindStringSubmatch(m.OSPrettyName); len(matches) >= 2 {
+			        suffix = matches[1] + strings.Join(matches[2:], "")
+			    }
+			}
+			return osvecosystem.Parsed{Ecosystem: osvschema.EcosystemOpenEuler, Suffix: suffix}
+		}
 	case *snapmeta.Metadata:
 		if m.OSID == "ubuntu" {
 			return osvecosystem.FromEcosystem(osvschema.EcosystemUbuntu)
