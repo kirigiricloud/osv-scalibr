@@ -84,6 +84,7 @@ func (m *Metadata) SetProto(p *pb.Package) {
 			OsId:         m.OSID,
 			OsVersionId:  m.OSVersionID,
 			OsBuildId:    m.OSBuildID,
+			OsPrettyName: m.OSPrettyName,
 			Vendor:       m.Vendor,
 			Architecture: m.Architecture,
 		},
@@ -104,6 +105,7 @@ func ToStruct(m *pb.RPMPackageMetadata) *Metadata {
 		OSID:         m.GetOsId(),
 		OSVersionID:  m.GetOsVersionId(),
 		OSBuildID:    m.GetOsBuildId(),
+		OSPrettyName: m.GetOsPrettyName(),
 		Vendor:       m.GetVendor(),
 		Architecture: m.GetArchitecture(),
 	}

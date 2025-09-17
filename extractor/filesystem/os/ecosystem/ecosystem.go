@@ -55,13 +55,15 @@ func MakeEcosystem(metadata any) osvecosystem.Parsed {
 		if m.OSID == "rocky" {
 			return osvecosystem.FromEcosystem(osvschema.EcosystemRockyLinux)
 		}
-		if m.OSID == "openeuler" {
+		if m.OSID == "openEuler" {
             // Extract version and LTS info from OSPrettyName to match osv-schema ecosystem. e.g. openEuler 24.03 (LTS-SP3) -> 24.03-LTS-SP3
             suffix := m.OSVersionID
-			if re := regexp.MustCompile(`openEuler (\d+\.\d+)(?:(-LTS)|\s*\((LTS-SP\d+)\))?`); re != nil {
-			    if matches := re.FindStringSubmatch(m.OSPrettyName); len(matches) >= 2 {
-			        suffix = matches[1] + strings.Join(matches[2:], "")
-			    }
+			if re := regexp.MustCompile(`openEuler\s+([0-9]+\.[0-9]+)(?:\s*\((LTS(?:-SP[0-9]+)?)\)|(?:-|\s+)?(LTS(?:-SP[0-9]+)?))?`); re != nil {
+				if matches := re.FindStringSubmatch(m.OSPrettyName); len(matches) >= 2 {
+					q := ""
+					if matches[2] != "" { q = matches[2] } else if matches[3] != "" { q = matches[3] }
+					if q != "" { suffix = matches[1] + "-" + q } else { suffix = matches[1] }
+				}
 			}
 			return osvecosystem.Parsed{Ecosystem: osvschema.EcosystemOpenEuler, Suffix: suffix}
 		}
