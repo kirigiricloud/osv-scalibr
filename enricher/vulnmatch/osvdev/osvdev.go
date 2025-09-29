@@ -16,22 +16,23 @@
 package osvdev
 
 import (
-	"context"
-	"errors"
-	"maps"
-	"slices"
-	"time"
+    "context"
+    "errors"
+    "maps"
+    "slices"
+    "time"
 
-	"github.com/google/osv-scalibr/enricher"
-	"github.com/google/osv-scalibr/extractor"
-	"github.com/google/osv-scalibr/inventory"
-	"github.com/google/osv-scalibr/inventory/vex"
-	"github.com/google/osv-scalibr/plugin"
-	scalibrversion "github.com/google/osv-scalibr/version"
-	"github.com/ossf/osv-schema/bindings/go/osvschema"
-	"golang.org/x/sync/errgroup"
-	"osv.dev/bindings/go/osvdev"
-	"osv.dev/bindings/go/osvdevexperimental"
+    "github.com/google/osv-scalibr/enricher"
+    "github.com/google/osv-scalibr/extractor"
+    "github.com/google/osv-scalibr/inventory"
+    "github.com/google/osv-scalibr/inventory/vex"
+    "github.com/google/osv-scalibr/log"
+    "github.com/google/osv-scalibr/plugin"
+    scalibrversion "github.com/google/osv-scalibr/version"
+    "github.com/ossf/osv-schema/bindings/go/osvschema"
+    "golang.org/x/sync/errgroup"
+    "osv.dev/bindings/go/osvdev"
+    "osv.dev/bindings/go/osvdevexperimental"
 )
 
 const (
@@ -100,6 +101,7 @@ func (Enricher) RequiredPlugins() []string {
 
 // Enrich queries the OSV.dev API to find vulnerabilities in the inventory packages
 func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inventory.Inventory) error {
+    log.Infof("OSV enricher: inventory has %d packages", len(inv.Packages))
 	pkgs := make([]*extractor.Package, 0, len(inv.Packages))
 	queries := make([]*osvdev.Query, 0, len(inv.Packages))
 	for _, pkg := range inv.Packages {
@@ -116,6 +118,16 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
 	queryCtx, cancel := withOptionalTimeoutCause(ctx, e.initialQueryTimeout, ErrInitialQueryTimeout)
 	defer cancel()
 
+    // Log outgoing queries for debugging. Visible with --verbose.
+    log.Debugf("OSV: sending %d queries", len(queries))
+    for i, q := range queries {
+        purlStr := ""
+        if pkgs[i] != nil && pkgs[i].PURL() != nil {
+            purlStr = pkgs[i].PURL().String()
+        }
+        log.Debugf("OSV query[%d]: ecosystem=%q name=%q version=%q purl=%q", i, q.Package.Ecosystem, q.Package.Name, q.Version, purlStr)
+    }
+
 	batchResp, initialQueryErr := osvdevexperimental.BatchQueryPaging(queryCtx, e.client, queries)
 	initialQueryErr = errors.Join(initialQueryErr, context.Cause(queryCtx))
 
@@ -130,11 +142,16 @@ func (e *Enricher) Enrich(ctx context.Context, _ *enricher.ScanInput, inv *inven
 	}
 
 	vulnToPkgs := map[string][]*extractor.Package{}
-	for i, batch := range batchResp.Results {
-		for _, vv := range batch.Vulns {
-			vulnToPkgs[vv.ID] = append(vulnToPkgs[vv.ID], pkgs[i])
-		}
-	}
+    for i, batch := range batchResp.Results {
+        ids := make([]string, 0, len(batch.Vulns))
+        for _, vv := range batch.Vulns {
+            ids = append(ids, vv.ID)
+            vulnToPkgs[vv.ID] = append(vulnToPkgs[vv.ID], pkgs[i])
+        }
+        if i < len(queries) {
+            log.Debugf("OSV response[%d]: ecosystem=%q name=%q version=%q matched=%d ids=%v", i, queries[i].Package.Ecosystem, queries[i].Package.Name, queries[i].Version, len(ids), ids)
+        }
+    }
 
 	vulnIDs := slices.Collect(maps.Keys(vulnToPkgs))
 	vulnerabilities, err := e.makeVulnerabilitiesRequest(ctx, vulnIDs)
@@ -188,29 +205,33 @@ func dedupPackageVulns(vulns []*inventory.PackageVuln) []*inventory.PackageVuln 
 }
 
 func (e *Enricher) makeVulnerabilitiesRequest(ctx context.Context, vulnIDs []string) ([]*osvschema.Vulnerability, error) {
-	vulnerabilities := make([]*osvschema.Vulnerability, len(vulnIDs))
-	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(maxConcurrentRequests)
+    vulnerabilities := make([]*osvschema.Vulnerability, len(vulnIDs))
+    g, ctx := errgroup.WithContext(ctx)
+    g.SetLimit(maxConcurrentRequests)
 
-	for i, vulnID := range vulnIDs {
-		g.Go(func() error {
-			// exit early if another hydration request has already failed
-			// results are thrown away later, so avoid needless work
-			if ctx.Err() != nil {
-				return nil //nolint:nilerr // this value doesn't matter to errgroup.Wait()
-			}
-			vuln, err := e.client.GetVulnByID(ctx, vulnID)
-			if err != nil {
-				return err
-			}
-			vulnerabilities[i] = vuln
+    for i, vulnID := range vulnIDs {
+        g.Go(func() error {
+            // exit early if another hydration request has already failed
+            // results are thrown away later, so avoid needless work
+            if ctx.Err() != nil {
+                return nil //nolint:nilerr // this value doesn't matter to errgroup.Wait()
+            }
+            log.Debugf("OSV getVulnByID: id=%s", vulnID)
+            vuln, err := e.client.GetVulnByID(ctx, vulnID)
+            if err != nil {
+                return err
+            }
+            vulnerabilities[i] = vuln
+            if vuln != nil {
+                log.Debugf("OSV got vuln: id=%s aliases=%d affected=%d", vuln.ID, len(vuln.Aliases), len(vuln.Affected))
+            }
 
-			return nil
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
+            return nil
+        })
+    }
+    if err := g.Wait(); err != nil {
+        return nil, err
+    }
 
 	return vulnerabilities, nil
 }

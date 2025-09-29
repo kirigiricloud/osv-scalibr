@@ -227,6 +227,40 @@ func TestEcosystemRPM(t *testing.T) {
 			metadata: &rpmmeta.Metadata{},
 			want:     "",
 		},
+		{
+			desc: "openEuler PRETTY_NAME LTS SP",
+			metadata: &rpmmeta.Metadata{
+				OSID:         "openEuler",
+				OSVersionID:  "24.03",
+				OSPrettyName: "openEuler 24.03 (LTS-SP3)",
+			},
+			want: "openEuler:24.03-LTS-SP3",
+		},
+		{
+			desc: "openEuler PRETTY_NAME LTS",
+			metadata: &rpmmeta.Metadata{
+				OSID:         "openEuler",
+				OSVersionID:  "24.03",
+				OSPrettyName: "openEuler 24.03 (LTS)",
+			},
+			want: "openEuler:24.03-LTS",
+		},
+		{
+			desc: "openEuler fallback to VERSION_ID",
+			metadata: &rpmmeta.Metadata{
+				OSID:        "openEuler",
+				OSVersionID: "24.03",
+			},
+			want: "openEuler:24.03",
+		},
+		{
+			desc: "openEuler PRETTY_NAME used if VERSION_ID empty",
+			metadata: &rpmmeta.Metadata{
+				OSID:         "openEuler",
+				OSPrettyName: "openEuler 24.03 (LTS-SP3)",
+			},
+			want: "openEuler:24.03-LTS-SP3",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {

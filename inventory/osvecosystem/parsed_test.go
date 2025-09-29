@@ -166,6 +166,20 @@ func buildCases(t *testing.T) []testCase {
 				Suffix:    "Pro:18.04:LTS",
 			},
 		},
+		{
+			string: "openEuler",
+			parsed: osvecosystem.Parsed{
+				Ecosystem: osvschema.EcosystemOpenEuler,
+				Suffix:    "",
+			},
+		},
+		{
+			string: "openEuler:24.03-LTS-SP3",
+			parsed: osvecosystem.Parsed{
+				Ecosystem: osvschema.EcosystemOpenEuler,
+				Suffix:    "24.03-LTS-SP3",
+			},
+		},
 	}
 }
 
